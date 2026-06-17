@@ -134,12 +134,18 @@ def result_card(r: MatchResult, profile: StudentProfile) -> str:
   <span><strong>Before sending:</strong> Read at least one of their recent papers first. Reference something specific about their actual work in your email — generic emails rarely get replies. Cold outreach works best when it shows genuine familiarity with what they study.</span>
 </div>"""
 
+    card_id = p.id.replace("-", "_")
+    email_id = f"email_{card_id}"
+    body_id = f"body_{card_id}"
+
     email_scaffold_html = f"""
-<details class="email-drop">
-  <summary>Generate outreach email ↓</summary>
-  {email_disclaimer}
-  <div class="email-pre-wrap"><pre class="email-pre">{html.escape(email_scaffold(profile, p, use_local_llm=False))}</pre></div>
-</details>"""
+<div class="email-drop">
+  <button class="email-drop-btn" onclick="(function(b){{var d=document.getElementById('{email_id}');var open=d.style.display!=='none';d.style.display=open?'none':'block';b.innerHTML=open?'Generate outreach email ↓':'Hide email ↑'}})(this)">Generate outreach email ↓</button>
+  <div id="{email_id}" style="display:none">
+    {email_disclaimer}
+    <div class="email-pre-wrap"><pre class="email-pre">{html.escape(email_scaffold(profile, p, use_local_llm=False))}</pre></div>
+  </div>
+</div>"""
 
     return f"""
 <div class="card">
@@ -163,43 +169,41 @@ def result_card(r: MatchResult, profile: StudentProfile) -> str:
     </div>
   </div>
 
-  <details class="card-details">
-    <summary class="card-summary">
-      <span class="card-summary-text">{esc(p.summary or "No summary available.")}</span>
-      <span class="card-summary-chevron">▸</span>
-    </summary>
+  <div class="card-summary-row" onclick="(function(r,b){{var d=document.getElementById('{body_id}');var open=d.style.display!=='none';d.style.display=open?'none':'block';r.classList.toggle('card-open',!open);b.innerHTML=open?'▸':'▾'}})(this,this.querySelector('.card-summary-chevron'))">
+    <span class="card-summary-text">{esc(p.summary or "No summary available.")}</span>
+    <span class="card-summary-chevron">▸</span>
+  </div>
 
-    <div class="card-body">
-      <div class="section">
-        <p class="sec-label">Research areas</p>
-        <div class="tag-row">{area_pills(p.research_areas)}</div>
-      </div>
-
-      <div class="section reason-box">
-        <p class="sec-label">Why this fits your brief</p>
-        <p class="reason-text">{esc(fit_line)}</p>
-      </div>
-
-      <div class="section">
-        <p class="sec-label">Matched keywords</p>
-        <div class="tag-row">{kw_pills(r.matched_terms)}</div>
-        <p class="score-line">Semantic {round(r.semantic_score*100)}% · Keyword {round(r.tag_score*100)}%</p>
-      </div>
-
-      <div class="section contact-section">
-        <p class="sec-label">Contact</p>
-        <div class="contact-row">{email_html}{lab_html}</div>
-      </div>
-
-      <div class="section">
-        <p class="sec-label">Public signals to verify</p>
-        <div class="signals">{signals_html}</div>
-      </div>
-
-      {papers_block(p.recent_papers, "Recent publications (2024+)") if p.recent_papers else papers_block(p.representative_papers, "Publications")}
-      {email_scaffold_html}
+  <div id="{body_id}" class="card-body" style="display:none">
+    <div class="section">
+      <p class="sec-label">Research areas</p>
+      <div class="tag-row">{area_pills(p.research_areas)}</div>
     </div>
-  </details>
+
+    <div class="section reason-box">
+      <p class="sec-label">Why this fits your brief</p>
+      <p class="reason-text">{esc(fit_line)}</p>
+    </div>
+
+    <div class="section">
+      <p class="sec-label">Matched keywords</p>
+      <div class="tag-row">{kw_pills(r.matched_terms)}</div>
+      <p class="score-line">Semantic {round(r.semantic_score*100)}% · Keyword {round(r.tag_score*100)}%</p>
+    </div>
+
+    <div class="section contact-section">
+      <p class="sec-label">Contact</p>
+      <div class="contact-row">{email_html}{lab_html}</div>
+    </div>
+
+    <div class="section">
+      <p class="sec-label">Public signals to verify</p>
+      <div class="signals">{signals_html}</div>
+    </div>
+
+    {papers_block(p.recent_papers, "Recent publications (2024+)") if p.recent_papers else papers_block(p.representative_papers, "Publications")}
+    {email_scaffold_html}
+  </div>
 </div>
 """
 
@@ -1106,27 +1110,22 @@ footer { display: none !important; }
   margin-top: 14px;
 }
 
-.email-drop summary {
+.email-drop-btn {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--green-d);
   cursor: pointer;
-  list-style: none;
+  background: none;
+  border: none;
+  padding: 0;
   display: flex;
   align-items: center;
   gap: 6px;
   user-select: none;
+  font-family: inherit;
 }
 
-.email-drop summary::-webkit-details-marker { display: none; }
-
-.email-drop summary::after {
-  content: "↓";
-  font-size: 0.9em;
-  transition: transform 0.15s;
-}
-
-.email-drop[open] summary::after { transform: rotate(180deg); }
+.email-drop-btn:hover { color: var(--green-dd); text-decoration: underline; }
 
 .email-pre-wrap { margin-top: 12px; }
 
@@ -1171,27 +1170,21 @@ footer { display: none !important; }
 }
 
 /* ─────────────────────────────────────────────────
-   COLLAPSIBLE CARD DETAILS
+   COLLAPSIBLE CARD TOGGLE ROW
 ───────────────────────────────────────────────── */
-.card-details {
-  border-top: 1px solid var(--border);
-}
-
-.card-summary {
+.card-summary-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 13px 22px;
   cursor: pointer;
-  list-style: none;
   user-select: none;
   background: var(--white);
+  border-top: 1px solid var(--border);
   transition: background 0.15s;
 }
 
-.card-summary::-webkit-details-marker { display: none; }
-
-.card-summary:hover { background: var(--gray-bg); }
+.card-summary-row:hover { background: var(--gray-bg); }
 
 .card-summary-text {
   flex: 1;
@@ -1205,13 +1198,11 @@ footer { display: none !important; }
   color: var(--green-d);
   font-weight: 700;
   margin-top: 2px;
-  transition: transform 0.2s ease;
   flex-shrink: 0;
+  transition: transform 0.15s;
 }
 
-.card-details[open] .card-summary-chevron {
-  transform: rotate(90deg);
-}
+.card-open .card-summary-chevron { transform: rotate(90deg); }
 
 /* ─────────────────────────────────────────────────
    H-INDEX BADGE
