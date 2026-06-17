@@ -38,6 +38,7 @@ class Professor:
     source_url: str = ""
     curation_notes: str = ""
     sample: bool = False
+    h_index: int | None = None
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "Professor":
@@ -64,6 +65,7 @@ class Professor:
             "source_url": self.source_url,
             "curation_notes": self.curation_notes,
             "sample": self.sample,
+            "h_index": self.h_index,
         }
 
 

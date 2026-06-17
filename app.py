@@ -80,6 +80,18 @@ def papers_block(papers: list[dict]) -> str:
     return f'<div class="section"><p class="sec-label">Papers</p>{"".join(rows)}</div>'
 
 
+def h_index_badge(h: int | None) -> str:
+    if h is None:
+        return ""
+    if h >= 30:
+        cls = "hbadge-high"
+    elif h >= 15:
+        cls = "hbadge-mid"
+    else:
+        cls = "hbadge-low"
+    return f'<span class="hbadge {cls}" title="Google Scholar h-index">h={h}</span>'
+
+
 def result_card(r: MatchResult, profile: StudentProfile) -> str:
     p = r.professor
     status_text, status_cls = STATUS_MAP.get(p.recent_publications_status or "", ("Status unknown", "st-gray"))
@@ -105,9 +117,16 @@ def result_card(r: MatchResult, profile: StudentProfile) -> str:
         else '<div class="sig-row no-contact">Check their faculty page for current activity.</div>'
     )
 
+    email_disclaimer = """
+<div class="email-disclaimer">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+  <span><strong>Before sending:</strong> Read at least one of their recent papers first. Reference something specific about their actual work in your email — generic emails rarely get replies. Cold outreach works best when it shows genuine familiarity with what they study.</span>
+</div>"""
+
     email_scaffold_html = f"""
 <details class="email-drop">
-  <summary>Generate outreach email</summary>
+  <summary>Generate outreach email ↓</summary>
+  {email_disclaimer}
   <div class="email-pre-wrap"><pre class="email-pre">{html.escape(email_scaffold(profile, p, use_local_llm=False))}</pre></div>
 </details>"""
 
@@ -115,7 +134,10 @@ def result_card(r: MatchResult, profile: StudentProfile) -> str:
 <div class="card">
   <div class="card-head">
     <div class="card-head-left">
-      <h3 class="prof-name">{esc(p.name or "Unknown")}</h3>
+      <div class="prof-name-row">
+        <h3 class="prof-name">{esc(p.name or "Unknown")}</h3>
+        {h_index_badge(p.h_index)}
+      </div>
       <p class="prof-sub">
         {esc(p.title or "Faculty")}
         <span class="dot">·</span>
@@ -130,38 +152,43 @@ def result_card(r: MatchResult, profile: StudentProfile) -> str:
     </div>
   </div>
 
-  <div class="card-body">
-    <p class="summary-text">{esc(p.summary or "No summary available.")}</p>
+  <details class="card-details">
+    <summary class="card-summary">
+      <span class="card-summary-text">{esc(p.summary or "No summary available.")}</span>
+      <span class="card-summary-chevron">▸</span>
+    </summary>
 
-    <div class="section">
-      <p class="sec-label">Research areas</p>
-      <div class="tag-row">{area_pills(p.research_areas)}</div>
+    <div class="card-body">
+      <div class="section">
+        <p class="sec-label">Research areas</p>
+        <div class="tag-row">{area_pills(p.research_areas)}</div>
+      </div>
+
+      <div class="section reason-box">
+        <p class="sec-label">Why this fits your brief</p>
+        <p class="reason-text">{esc(fit_line)}</p>
+      </div>
+
+      <div class="section">
+        <p class="sec-label">Matched keywords</p>
+        <div class="tag-row">{kw_pills(r.matched_terms)}</div>
+        <p class="score-line">Semantic {round(r.semantic_score*100)}% · Keyword {round(r.tag_score*100)}%</p>
+      </div>
+
+      <div class="section contact-section">
+        <p class="sec-label">Contact</p>
+        <div class="contact-row">{email_html}{lab_html}</div>
+      </div>
+
+      <div class="section">
+        <p class="sec-label">Public signals to verify</p>
+        <div class="signals">{signals_html}</div>
+      </div>
+
+      {papers_block(p.representative_papers)}
+      {email_scaffold_html}
     </div>
-
-    <div class="section reason-box">
-      <p class="sec-label">Why this fits your brief</p>
-      <p class="reason-text">{esc(fit_line)}</p>
-    </div>
-
-    <div class="section">
-      <p class="sec-label">Matched keywords</p>
-      <div class="tag-row">{kw_pills(r.matched_terms)}</div>
-      <p class="score-line">Semantic {round(r.semantic_score*100)}% · Keyword {round(r.tag_score*100)}%</p>
-    </div>
-
-    <div class="section contact-section">
-      <p class="sec-label">Contact</p>
-      <div class="contact-row">{email_html}{lab_html}</div>
-    </div>
-
-    <div class="section">
-      <p class="sec-label">Public signals to verify</p>
-      <div class="signals">{signals_html}</div>
-    </div>
-
-    {papers_block(p.representative_papers)}
-    {email_scaffold_html}
-  </div>
+  </details>
 </div>
 """
 
@@ -1074,6 +1101,137 @@ footer { display: none !important; }
   margin: 0;
 }
 
+/* ─────────────────────────────────────────────────
+   SCROLL HINT
+───────────────────────────────────────────────── */
+.scroll-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 8px;
+  padding: 10px 14px;
+  background: var(--green-bg);
+  border: 1px solid var(--green-border);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--green-d);
+}
+
+.scroll-hint-arrow {
+  font-size: 1.1rem;
+  animation: bounce-down 1.4s ease-in-out infinite;
+}
+
+@keyframes bounce-down {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(5px); }
+}
+
+/* ─────────────────────────────────────────────────
+   COLLAPSIBLE CARD DETAILS
+───────────────────────────────────────────────── */
+.card-details {
+  border-top: 1px solid var(--border);
+}
+
+.card-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 22px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  background: var(--white);
+  transition: background 0.15s;
+}
+
+.card-summary::-webkit-details-marker { display: none; }
+
+.card-summary:hover { background: var(--gray-bg); }
+
+.card-summary-text {
+  flex: 1;
+  font-size: 0.92rem;
+  color: var(--ink-3);
+  line-height: 1.55;
+}
+
+.card-summary-chevron {
+  font-size: 0.85rem;
+  color: var(--green-d);
+  font-weight: 700;
+  margin-top: 2px;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.card-details[open] .card-summary-chevron {
+  transform: rotate(90deg);
+}
+
+/* ─────────────────────────────────────────────────
+   H-INDEX BADGE
+───────────────────────────────────────────────── */
+.prof-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+
+.prof-name-row .prof-name {
+  margin-bottom: 0;
+}
+
+.hbadge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.hbadge-high {
+  background: #ECFDF5;
+  color: #065F46;
+  border: 1px solid #6EE7B7;
+}
+
+.hbadge-mid {
+  background: var(--blue-bg);
+  color: var(--blue-ink);
+  border: 1px solid var(--blue-border);
+}
+
+.hbadge-low {
+  background: var(--gray-bg);
+  color: var(--gray-ink);
+  border: 1px solid var(--gray-border);
+}
+
+/* ─────────────────────────────────────────────────
+   EMAIL DISCLAIMER
+───────────────────────────────────────────────── */
+.email-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 10px;
+  padding: 10px 13px;
+  background: var(--amber-bg);
+  border: 1px solid var(--amber-border);
+  border-radius: 9px;
+  font-size: 0.83rem;
+  color: var(--amber);
+  line-height: 1.5;
+}
+
+.email-disclaimer strong { color: #78350F; }
+
 /* Empty / error states */
 .empty-state {
   background: var(--white);
@@ -1252,9 +1410,16 @@ with gr.Blocks(
 
                     run_btn = gr.Button("Find matches →", elem_id="rm-run", variant="primary")
 
+                gr.HTML("""
+                <div class="scroll-hint" id="rm-scroll-hint">
+                  <div class="scroll-hint-arrow">↓</div>
+                  <span>Your matches appear below — scroll down to see them</span>
+                </div>
+                """)
+
                 # Results
                 output = gr.HTML(
-                    value='<div class="empty-state">Your matched professors will appear here.</div>',
+                    value='<div class="empty-state">Your matched professors will appear here — fill in your interests above and click <strong>Find matches</strong>.</div>',
                     elem_id="rm-output",
                 )
 

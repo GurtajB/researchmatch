@@ -14,9 +14,10 @@ from .data import Professor, load_professors, professor_embedding_text
 from .profile import ResearchGoal, StudentProfile, normalize_term
 
 
-SEMANTIC_WEIGHT = 0.70
-TAG_WEIGHT = 0.26
+SEMANTIC_WEIGHT = 0.68
+TAG_WEIGHT = 0.25
 PRIORITY_BOOST = 0.04  # applied to professors flagged researchmatch_priority="high"
+H_INDEX_MAX_BOOST = 0.03  # max 3% boost for h-index (at h=50+)
 
 
 class Embedder(Protocol):
@@ -154,7 +155,9 @@ def match_professors(
     for professor, semantic in zip(professors, semantic_scores):
         overlap_score, matched_terms = tag_overlap(profile, professor)
         priority_bonus = PRIORITY_BOOST if professor.researchmatch_priority == "high" else 0.0
-        final_score = SEMANTIC_WEIGHT * float(semantic) + TAG_WEIGHT * overlap_score + priority_bonus
+        h = professor.h_index or 0
+        h_bonus = H_INDEX_MAX_BOOST * min(1.0, h / 50.0)
+        final_score = SEMANTIC_WEIGHT * float(semantic) + TAG_WEIGHT * overlap_score + priority_bonus + h_bonus
         results.append(
             MatchResult(
                 professor=professor,
