@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# App cache (embedding vectors — regenerated automatically)
+.cache/
+
+# Gradio internals
+gradio_cached_examples/
+flagged/
+
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Secrets / local config
+.env
+.env.*
