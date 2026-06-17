@@ -1,5 +1,5 @@
 """
-Enrich professors.json with h-index and recent papers from Semantic Scholar.
+Enrich professors.json with h-index and recent papers from OpenAlex (open academic API).
 Run: python enrich_scholar.py
 """
 from __future__ import annotations
@@ -8,77 +8,79 @@ import json
 import ssl
 import time
 import urllib.request
+import urllib.parse
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_FILE = APP_DIR / "professors.json"
 
-# SSL context that works on macOS without certificates installed
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
 
-BASE = "https://api.semanticscholar.org/graph/v1"
-HEADERS = {"Accept": "application/json", "User-Agent": "ResearchMatch/1.0 (student project)"}
+BASE = "https://api.openalex.org"
+# Include mailto for the polite pool (higher rate limit: 10 req/sec)
+MAILTO = "gurtajboparai123@gmail.com"
+HEADERS = {"Accept": "application/json", "User-Agent": f"ResearchMatch/1.0 (mailto:{MAILTO})"}
 
 
 def get(url: str) -> dict:
+    if "?" in url:
+        url += f"&mailto={MAILTO}"
+    else:
+        url += f"?mailto={MAILTO}"
     req = urllib.request.Request(url, headers=HEADERS)
-    for attempt in range(5):
+    for attempt in range(4):
         try:
             with urllib.request.urlopen(req, timeout=15, context=CTX) as r:
                 return json.loads(r.read())
         except urllib.error.HTTPError as e:
             if e.code == 429:
-                wait = 15 * (2 ** attempt)  # 15, 30, 60, 120, 240s
+                wait = 10 * (2 ** attempt)
                 print(f"  rate-limited, waiting {wait}s…", flush=True)
                 time.sleep(wait)
+            elif e.code == 404:
+                return {}
             else:
                 raise
         except Exception as e:
             print(f"  network error: {e}", flush=True)
-            time.sleep(8)
+            time.sleep(5)
     return {}
 
 
-def search_author(name: str, affil_hint: str = "University of North Texas") -> dict | None:
-    q = urllib.request.quote(f"{name} {affil_hint}")
-    url = f"{BASE}/author/search?query={q}&fields=name,hIndex,affiliations,paperCount&limit=5"
+def search_author(name: str) -> dict | None:
+    q = urllib.parse.quote(name)
+    url = f"{BASE}/authors?search={q}&per_page=8"
     data = get(url)
-    candidates = data.get("data", [])
-    # Pick the best match: name similarity + UNT affiliation
+    candidates = data.get("results", [])
     name_lower = name.lower()
+    # Prefer exact name + UNT affiliation
     for c in candidates:
-        affils = " ".join(a.get("name", "").lower() for a in c.get("affiliations", []))
-        if c.get("name", "").lower() == name_lower and ("north texas" in affils or "unt" in affils):
+        affils = " ".join(
+            x.get("institution", {}).get("display_name", "").lower()
+            for x in c.get("affiliations", [])
+        )
+        if c.get("display_name", "").lower() == name_lower and "north texas" in affils:
             return c
-    # Fallback: just name match
+    # Fallback: exact name match regardless of affiliation
     for c in candidates:
-        if c.get("name", "").lower() == name_lower:
+        if c.get("display_name", "").lower() == name_lower:
             return c
     return None
 
 
-def get_recent_papers(author_id: str, n: int = 3) -> list[dict]:
-    url = (
-        f"{BASE}/author/{author_id}/papers"
-        f"?fields=title,year,url,externalIds,citationCount&limit=50"
-    )
+def get_top_papers(works_api_url: str, n: int = 3) -> list[dict]:
+    url = f"{works_api_url}&sort=cited_by_count:desc&per_page={n}"
     data = get(url)
-    papers = data.get("data", [])
-    # Sort by year desc, then citations
-    papers.sort(key=lambda p: (p.get("year") or 0, p.get("citationCount") or 0), reverse=True)
+    papers = data.get("results", [])
     result = []
     for p in papers[:n]:
         title = p.get("title", "")
-        year = p.get("year")
-        url_out = p.get("url", "")
-        # Prefer DOI link, then arXiv, then S2 URL
-        ext = p.get("externalIds", {}) or {}
-        if ext.get("DOI"):
-            url_out = f"https://doi.org/{ext['DOI']}"
-        elif ext.get("ArXiv"):
-            url_out = f"https://arxiv.org/abs/{ext['ArXiv']}"
+        year = p.get("publication_year")
+        doi = p.get("doi", "")
+        # doi already comes as full URL from OpenAlex
+        url_out = doi if doi and doi.startswith("http") else (f"https://doi.org/{doi}" if doi else "")
         result.append({"title": title, "year": str(year) if year else "", "url": url_out})
     return result
 
@@ -96,13 +98,12 @@ def main():
         if not name:
             continue
 
-        # Skip if already enriched
         if p.get("h_index") is not None:
             skipped += 1
             continue
 
         print(f"[{i+1}/{len(profs)}] {name}…", end=" ", flush=True)
-        time.sleep(3.0)  # ~20 reqs/min, well under free tier limit
+        time.sleep(0.15)  # polite pool allows 10 req/sec; 0.15s gives ~6/sec
 
         author = search_author(name)
         if not author:
@@ -111,38 +112,36 @@ def main():
             failed += 1
             continue
 
-        author_id = author["authorId"]
-        h = author.get("hIndex")
-        print(f"h={h}", end=" ", flush=True)
+        stats = author.get("summary_stats", {}) or {}
+        h = stats.get("h_index")
+        works_count = author.get("works_count", 0)
+        works_url = author.get("works_api_url", "")
 
-        time.sleep(3.0)
-        papers = get_recent_papers(author_id, n=3)
+        print(f"h={h} works={works_count}", end=" ", flush=True)
+
+        papers = []
+        if works_url:
+            time.sleep(0.15)
+            papers = get_top_papers(works_url, n=3)
+
         print(f"papers={len(papers)}")
 
         p["h_index"] = h
-        if papers and not p.get("representative_papers"):
-            p["representative_papers"] = papers
-        elif papers:
-            # Merge: keep existing titles, add URLs where missing
-            existing_titles = {pp.get("title", "").lower() for pp in p["representative_papers"]}
+
+        # Add papers if none exist yet
+        if papers and not any(pp.get("url") for pp in p.get("representative_papers", [])):
+            existing_titles = {pp.get("title", "").lower() for pp in p.get("representative_papers", [])}
             for paper in papers:
                 if paper["title"].lower() not in existing_titles:
-                    p["representative_papers"].append(paper)
-            # Ensure URLs on existing papers
-            for pp in p["representative_papers"]:
-                if not pp.get("url"):
-                    for paper in papers:
-                        if paper["title"].lower() == pp.get("title", "").lower():
-                            pp["url"] = paper["url"]
+                    p.setdefault("representative_papers", []).append(paper)
 
         enriched += 1
 
-        # Save after every 10 to not lose progress
-        if enriched % 10 == 0:
+        if enriched % 20 == 0:
             with open(DATA_FILE, "w") as f:
                 json.dump(profs, f, indent=2, ensure_ascii=False)
                 f.write("\n")
-            print(f"  ✓ saved checkpoint ({enriched} enriched so far)")
+            print(f"  ✓ checkpoint ({enriched} enriched)", flush=True)
 
     with open(DATA_FILE, "w") as f:
         json.dump(profs, f, indent=2, ensure_ascii=False)
