@@ -222,7 +222,7 @@ def find_matches(interests: str, skills: str, goal: str) -> str:
     n = len(results)
     cards = "\n".join(result_card(r, profile) for r in results)
     return f"""
-<div class="results-meta">Showing {n} professor{"s" if n != 1 else ""} ranked by fit to your brief</div>
+<div class="results-meta">Showing {n} professor{"s" if n != 1 else ""} matched to your brief · sorted by h-index</div>
 {cards}
 <div class="results-footer">Unofficial student-built tool · Verify all information · Faculty availability is always unknown · Outreach should be individual and specific</div>
 """
