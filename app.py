@@ -216,7 +216,7 @@ def result_card(r: MatchResult, profile: StudentProfile) -> str:
 TOP_K = 15
 
 
-def find_matches(interests: str, skills: str, goal: str, prioritize_interest: bool = False) -> str:
+def find_matches(interests: str, skills: str, goal: str) -> str:
     top_k = TOP_K
     interests = interests.strip()
     if len(interests) < 8:
@@ -232,7 +232,6 @@ def find_matches(interests: str, skills: str, goal: str, prioritize_interest: bo
         results = match_professors(
             profile, PROFESSORS, top_k=int(top_k),
             embedder=get_embedder(), cache_dir=APP_DIR / ".cache",
-            prioritize_interest=bool(prioritize_interest),
         )
     except Exception as exc:
         return f'<div class="empty-state"><strong>Error:</strong> {esc(str(exc))}</div>'
@@ -240,13 +239,12 @@ def find_matches(interests: str, skills: str, goal: str, prioritize_interest: bo
     if not results:
         return '<div class="empty-state">No matches found — try being more specific about your interests.</div>'
 
-    sort_label = "sorted by interest fit" if prioritize_interest else "sorted by h-index"
     n = len(results)
     cards = "\n".join(result_card(r, profile) for r in results)
     return f"""
 <div class="results-meta">
   {n} professor{"s" if n != 1 else ""} with 2024+ publications matching your brief
-  <span class="sort-badge">↕ {sort_label}</span>
+  <span class="sort-badge">↕ sorted by h-index</span>
 </div>
 {cards}
 <div class="results-footer">Unofficial student-built tool · Verify all information · Faculty availability is always unknown · Outreach should be individual and specific</div>
@@ -850,16 +848,6 @@ footer { display: none !important; }
   border: 1px solid var(--blue-border);
 }
 
-/* Priority toggle checkbox */
-#rm-priority-toggle,
-#rm-priority-toggle label,
-#rm-priority-toggle input,
-#rm-priority-toggle span {
-  color: var(--ink-3) !important;
-  font-size: 0.875rem !important;
-  font-weight: 500 !important;
-}
-#rm-priority-toggle { margin-bottom: 14px !important; }
 
 .card {
   background: var(--white);
@@ -1465,13 +1453,6 @@ with gr.Blocks(
                         value=ResearchGoal.EXPLORE.value,
                     )
 
-                    prioritize_interest = gr.Checkbox(
-                        label="Prioritize interest fit over h-index",
-                        value=False,
-                        elem_id="rm-priority-toggle",
-                        info="Default: sorted by h-index (most prolific matching profs first). Toggle to sort by how closely their work matches your interests instead.",
-                    )
-
                     run_btn = gr.Button("Find matches →", elem_id="rm-run", variant="primary")
 
                 gr.HTML("""
@@ -1535,7 +1516,7 @@ with gr.Blocks(
 
         run_btn.click(
             fn=find_matches,
-            inputs=[interests, skills, goal, prioritize_interest],
+            inputs=[interests, skills, goal],
             outputs=output,
         )
 
