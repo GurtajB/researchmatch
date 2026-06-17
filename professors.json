@@ -4498,12 +4498,14 @@
     "dept": "Physics",
     "title": "Assistant Professor",
     "research_areas": [
-      "thermal radiation spectroscopy",
-      "optics",
+      "nonlinear optics",
+      "thermal radiation",
+      "nanophotonics",
       "photonics",
+      "optics",
       "machine learning"
     ],
-    "summary": "Thermal-radiation spectroscopy and depth-resolved temperature profiling; strong CS+physics target.",
+    "summary": "Nonlinear optics, nanophotonics, and thermal radiation spectroscopy; depth-resolved temperature profiling using optical methods. Strong fit for physics and CS students.",
     "representative_papers": [
       {
         "title": "Nanophotonic engineering of far-field thermal emitters",
@@ -4540,23 +4542,7 @@
     "curation_notes": "",
     "h_index": 23,
     "has_recent_pubs": true,
-    "recent_papers": [
-      {
-        "title": "HINDI KAVYANUVAD ME NIMITTA ANUVAD KI SAMASYAYE VA SAMADHAN (VISHESH SANDARBHA VINDA KARANDIKAR KI KAVITA)",
-        "year": "2025",
-        "url": "https://doi.org/10.5281/zenodo.18008194"
-      },
-      {
-        "title": "LOK SAHITYA AUR ANUVAD: SANSKRUTI KE SANRAKSHAN KA MADHYAM",
-        "year": "2025",
-        "url": "https://doi.org/10.5281/zenodo.18007098"
-      },
-      {
-        "title": "AADHUNIK KALKHANDAT TOULANIK SAHITYACHE SWARUP VA MAHATVA",
-        "year": "2025",
-        "url": "https://doi.org/10.5281/zenodo.18013376"
-      }
-    ]
+    "recent_papers": []
   },
   {
     "id": "pieter_allaart",
