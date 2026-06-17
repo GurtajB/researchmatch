@@ -64,20 +64,31 @@ def kw_pills(terms: list[str]) -> str:
     return "".join(f'<span class="tag tag-green">{esc(t)}</span>' for t in terms[:10])
 
 
-def papers_block(papers: list[dict]) -> str:
+def paper_link(paper: dict) -> str:
+    url = paper.get("url", "")
+    title = paper.get("title", "") or "Untitled"
+    if not url:
+        # Google Scholar search fallback
+        url = "https://scholar.google.com/scholar?q=" + title.replace(" ", "+")
+    return url
+
+
+def papers_block(papers: list[dict], label: str = "Papers") -> str:
     if not papers:
         return ""
     rows = []
     for p in papers[:3]:
         title = esc(p.get("title", "Untitled"))
         year  = esc(p.get("year", ""))
-        url   = p.get("url", "")
+        url   = paper_link(p)
         yr    = f' <span class="yr">({year})</span>' if year else ""
-        if url:
-            rows.append(f'<div class="paper-row"><a href="{esc(url)}" target="_blank" rel="noreferrer" class="paper-a">{title}</a>{yr}</div>')
-        else:
-            rows.append(f'<div class="paper-row">{title}{yr}</div>')
-    return f'<div class="section"><p class="sec-label">Papers</p>{"".join(rows)}</div>'
+        rows.append(
+            f'<div class="paper-row">'
+            f'<a href="{esc(url)}" target="_blank" rel="noreferrer" class="paper-a">{title}</a>{yr}'
+            f'</div>'
+        )
+    verify = '<p class="score-line" style="margin-top:6px">Links sourced from OpenAlex — verify on faculty page</p>'
+    return f'<div class="section"><p class="sec-label">{label}</p>{"".join(rows)}{verify}</div>'
 
 
 def h_index_badge(h: int | None) -> str:
@@ -185,7 +196,7 @@ def result_card(r: MatchResult, profile: StudentProfile) -> str:
         <div class="signals">{signals_html}</div>
       </div>
 
-      {papers_block(p.representative_papers)}
+      {papers_block(p.recent_papers, "Recent publications (2024+)") if p.recent_papers else papers_block(p.representative_papers, "Publications")}
       {email_scaffold_html}
     </div>
   </details>
@@ -196,7 +207,7 @@ def result_card(r: MatchResult, profile: StudentProfile) -> str:
 TOP_K = 15
 
 
-def find_matches(interests: str, skills: str, goal: str) -> str:
+def find_matches(interests: str, skills: str, goal: str, prioritize_interest: bool = False) -> str:
     top_k = TOP_K
     interests = interests.strip()
     if len(interests) < 8:
@@ -212,6 +223,7 @@ def find_matches(interests: str, skills: str, goal: str) -> str:
         results = match_professors(
             profile, PROFESSORS, top_k=int(top_k),
             embedder=get_embedder(), cache_dir=APP_DIR / ".cache",
+            prioritize_interest=bool(prioritize_interest),
         )
     except Exception as exc:
         return f'<div class="empty-state"><strong>Error:</strong> {esc(str(exc))}</div>'
@@ -219,10 +231,14 @@ def find_matches(interests: str, skills: str, goal: str) -> str:
     if not results:
         return '<div class="empty-state">No matches found — try being more specific about your interests.</div>'
 
+    sort_label = "sorted by interest fit" if prioritize_interest else "sorted by h-index"
     n = len(results)
     cards = "\n".join(result_card(r, profile) for r in results)
     return f"""
-<div class="results-meta">Showing {n} professor{"s" if n != 1 else ""} matched to your brief · sorted by h-index</div>
+<div class="results-meta">
+  {n} professor{"s" if n != 1 else ""} with 2024+ publications matching your brief
+  <span class="sort-badge">↕ {sort_label}</span>
+</div>
 {cards}
 <div class="results-footer">Unofficial student-built tool · Verify all information · Faculty availability is always unknown · Outreach should be individual and specific</div>
 """
@@ -807,7 +823,33 @@ footer { display: none !important; }
   margin-bottom: 14px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
+
+.sort-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--blue-bg);
+  color: var(--blue-ink);
+  border: 1px solid var(--blue-border);
+}
+
+/* Priority toggle checkbox */
+#rm-priority-toggle,
+#rm-priority-toggle label,
+#rm-priority-toggle input,
+#rm-priority-toggle span {
+  color: var(--ink-3) !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+}
+#rm-priority-toggle { margin-bottom: 14px !important; }
 
 .card {
   background: var(--white);
@@ -1408,6 +1450,13 @@ with gr.Blocks(
                         value=ResearchGoal.EXPLORE.value,
                     )
 
+                    prioritize_interest = gr.Checkbox(
+                        label="Prioritize interest fit over h-index",
+                        value=False,
+                        elem_id="rm-priority-toggle",
+                        info="Default: sorted by h-index (most prolific matching profs first). Toggle to sort by how closely their work matches your interests instead.",
+                    )
+
                     run_btn = gr.Button("Find matches →", elem_id="rm-run", variant="primary")
 
                 gr.HTML("""
@@ -1471,7 +1520,7 @@ with gr.Blocks(
 
         run_btn.click(
             fn=find_matches,
-            inputs=[interests, skills, goal],
+            inputs=[interests, skills, goal, prioritize_interest],
             outputs=output,
         )
 

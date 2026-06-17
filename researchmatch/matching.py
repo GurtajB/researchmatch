@@ -131,27 +131,34 @@ def tag_overlap(profile: StudentProfile, professor: Professor) -> tuple[float, l
 def match_professors(
     profile: StudentProfile,
     professors: list[Professor],
-    top_k: int = 8,
+    top_k: int = 15,
     embedder: Embedder | None = None,
     cache_dir: str | Path = ".cache",
+    prioritize_interest: bool = False,
 ) -> list[MatchResult]:
     profile.validate()
     if not professors:
         return []
+
+    # Only show professors with publications in 2024 or later
+    active = [p for p in professors if p.has_recent_pubs]
+    if not active:
+        active = professors  # fallback: show all if none pass the filter
+
     embedder = embedder or default_embedder()
-    professor_texts = [professor_embedding_text(prof) for prof in professors]
+    professor_texts = [professor_embedding_text(prof) for prof in active]
     student_text = profile.text_for_matching()
 
     if isinstance(embedder, TfidfEmbedder):
         prof_embeddings, student_embedding = embedder.encode_pair(professor_texts, student_text)
         semantic_scores = cosine_similarity(prof_embeddings, student_embedding).ravel()
     else:
-        prof_embeddings = get_professor_embeddings(professors, embedder, cache_dir=cache_dir)
+        prof_embeddings = get_professor_embeddings(active, embedder, cache_dir=cache_dir)
         student_embedding = embedder.encode([student_text])
         semantic_scores = cosine_similarity(prof_embeddings, student_embedding).ravel()
 
     results: list[MatchResult] = []
-    for professor, semantic in zip(professors, semantic_scores):
+    for professor, semantic in zip(active, semantic_scores):
         overlap_score, matched_terms = tag_overlap(profile, professor)
         priority_bonus = PRIORITY_BOOST if professor.researchmatch_priority == "high" else 0.0
         final_score = SEMANTIC_WEIGHT * float(semantic) + TAG_WEIGHT * overlap_score + priority_bonus
@@ -164,9 +171,16 @@ def match_professors(
                 matched_terms=matched_terms,
             )
         )
-    # Get top matches by relevance, then re-sort by h-index (None → 0)
-    top = sorted(results, key=lambda item: item.final_score, reverse=True)[:top_k]
-    return sorted(top, key=lambda item: item.professor.h_index or 0, reverse=True)
+
+    # Pull top K by keyword/semantic fit first
+    top = sorted(results, key=lambda r: r.final_score, reverse=True)[:top_k]
+
+    if prioritize_interest:
+        # Sort by relevance score (best fit first)
+        return sorted(top, key=lambda r: r.final_score, reverse=True)
+    else:
+        # Default: sort by h-index (highest first); h=None sorts last
+        return sorted(top, key=lambda r: (r.professor.h_index is not None, r.professor.h_index or 0), reverse=True)
 
 
 def _self_test() -> None:

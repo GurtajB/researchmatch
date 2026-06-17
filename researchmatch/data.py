@@ -39,6 +39,8 @@ class Professor:
     curation_notes: str = ""
     sample: bool = False
     h_index: int | None = None
+    has_recent_pubs: bool = False
+    recent_papers: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "Professor":
@@ -66,6 +68,8 @@ class Professor:
             "curation_notes": self.curation_notes,
             "sample": self.sample,
             "h_index": self.h_index,
+            "has_recent_pubs": self.has_recent_pubs,
+            "recent_papers": self.recent_papers,
         }
 
 
