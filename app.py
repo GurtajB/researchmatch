@@ -135,13 +135,17 @@ def result_card(r: MatchResult, profile: StudentProfile) -> str:
 </div>"""
 
     card_id = p.id.replace("-", "_")
-    email_id = f"email_{card_id}"
-    body_id = f"body_{card_id}"
+    toggle_id = f"ct_{card_id}"
+    email_id  = f"et_{card_id}"
 
     email_scaffold_html = f"""
 <div class="email-drop">
-  <button class="email-drop-btn" onclick="(function(b){{var d=document.getElementById('{email_id}');var open=d.style.display!=='none';d.style.display=open?'none':'block';b.innerHTML=open?'Generate outreach email ↓':'Hide email ↑'}})(this)">Generate outreach email ↓</button>
-  <div id="{email_id}" style="display:none">
+  <input type="checkbox" id="{email_id}" class="email-toggle">
+  <label for="{email_id}" class="email-drop-btn">
+    <span class="email-show-text">Generate outreach email ↓</span>
+    <span class="email-hide-text">Hide email ↑</span>
+  </label>
+  <div class="email-content">
     {email_disclaimer}
     <div class="email-pre-wrap"><pre class="email-pre">{html.escape(email_scaffold(profile, p, use_local_llm=False))}</pre></div>
   </div>
@@ -149,6 +153,7 @@ def result_card(r: MatchResult, profile: StudentProfile) -> str:
 
     return f"""
 <div class="card">
+  <input type="checkbox" id="{toggle_id}" class="card-toggle">
   <div class="card-head">
     <div class="card-head-left">
       <div class="prof-name-row">
@@ -169,12 +174,12 @@ def result_card(r: MatchResult, profile: StudentProfile) -> str:
     </div>
   </div>
 
-  <div class="card-summary-row" onclick="(function(r,b){{var d=document.getElementById('{body_id}');var open=d.style.display!=='none';d.style.display=open?'none':'block';r.classList.toggle('card-open',!open);b.innerHTML=open?'▸':'▾'}})(this,this.querySelector('.card-summary-chevron'))">
+  <label for="{toggle_id}" class="card-summary-row">
     <span class="card-summary-text">{esc(p.summary or "No summary available.")}</span>
     <span class="card-summary-chevron">▸</span>
-  </div>
+  </label>
 
-  <div id="{body_id}" class="card-body" style="display:none">
+  <div class="card-body">
     <div class="section">
       <p class="sec-label">Research areas</p>
       <div class="tag-row">{area_pills(p.research_areas)}</div>
@@ -601,11 +606,12 @@ footer { display: none !important; }
 }
 
 /* ── Labels: big, bold, BLACK — hardcoded, no CSS vars that dark mode can touch ── */
-#rm-left label,
-#rm-left label *,
+/* Exclude our custom card/email toggle labels */
+#rm-left label:not(.card-summary-row):not(.email-drop-btn),
+#rm-left label:not(.card-summary-row):not(.email-drop-btn) *,
 #rm-left span[class*="svelte"],
-.gradio-container #rm-left label,
-.gradio-container #rm-left label span {
+.gradio-container #rm-left label:not(.card-summary-row):not(.email-drop-btn),
+.gradio-container #rm-left label:not(.card-summary-row):not(.email-drop-btn) span {
   color: #0F172A !important;
   font-size: 1rem !important;
   font-weight: 800 !important;
@@ -953,9 +959,20 @@ footer { display: none !important; }
   color: var(--gray-ink);
 }
 
+/* Card / email toggles — hidden checkboxes drive CSS-only open/close */
+.card-toggle,
+.email-toggle {
+  display: none;
+}
+
 /* Card body */
 .card-body {
+  display: none;
   padding: 18px 22px 20px;
+}
+
+.card-toggle:checked ~ .card-body {
+  display: block;
 }
 
 .summary-text {
@@ -1127,6 +1144,13 @@ footer { display: none !important; }
 
 .email-drop-btn:hover { color: var(--green-dd); text-decoration: underline; }
 
+/* Email toggle CSS-only open/close */
+.email-content { display: none; }
+.email-hide-text { display: none; }
+.email-toggle:checked ~ .email-drop-btn .email-show-text { display: none; }
+.email-toggle:checked ~ .email-drop-btn .email-hide-text { display: block; }
+.email-toggle:checked ~ .email-content { display: block; }
+
 .email-pre-wrap { margin-top: 12px; }
 
 .email-pre {
@@ -1202,7 +1226,7 @@ footer { display: none !important; }
   transition: transform 0.15s;
 }
 
-.card-open .card-summary-chevron { transform: rotate(90deg); }
+.card-toggle:checked ~ .card-summary-row .card-summary-chevron { transform: rotate(90deg); }
 
 /* ─────────────────────────────────────────────────
    H-INDEX BADGE
